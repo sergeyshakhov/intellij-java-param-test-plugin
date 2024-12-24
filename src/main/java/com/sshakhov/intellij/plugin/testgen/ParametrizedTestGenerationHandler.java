@@ -40,6 +40,7 @@ public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBas
     @Override
     protected ClassMember[] getAllOriginalMembers(PsiClass psiClass) {
         return stream(psiClass.getMethods())
+                .filter(method -> !method.getModifierList().hasExplicitModifier(PsiModifier.PRIVATE))
                 .map(PsiMethodMember::new)
                 .toArray(ClassMember[]::new);
     }
