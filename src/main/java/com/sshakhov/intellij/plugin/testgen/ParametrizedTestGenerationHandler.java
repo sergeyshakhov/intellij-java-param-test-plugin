@@ -13,11 +13,26 @@ import com.intellij.psi.codeStyle.JavaCodeStyleManager;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
+import static java.lang.Character.toUpperCase;
 import static java.util.Arrays.stream;
 import static java.util.stream.Collectors.joining;
 
 public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBase {
+
+    private static final List<String> SIMPLE_TYPES = List.of(new String[]{
+            "boolean",
+            "byte",
+            "char",
+            "double",
+            "float",
+            "int",
+            "long",
+            "short",
+            "String"
+    });
+
     public ParametrizedTestGenerationHandler(String title) {
         super(title);
     }
@@ -44,18 +59,27 @@ public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBas
         var directory = findOrCreateTestDirectory(project, psiClass);
         var testClass = findOrCreateTestClass(directory, testClassName);
 
-        var testMethodText = buildTestMethodText(originalMethod);
+        var hasOnlySimpleTypes = hasOnlySimpleTypes(originalMethod);
+        var testMethodText = buildTestMethodText(originalMethod, !hasOnlySimpleTypes);
         var testMethod = factory.createMethodFromText(testMethodText, testClass);
-        var methodSourceMethodText = buildMethodSourceMethod(testMethod.getName());
-        var methodSourceMethod = factory.createMethodFromText(methodSourceMethodText, testClass);
 
-        testClass.add(methodSourceMethod);
+        if (!hasOnlySimpleTypes) {
+            var methodSourceMethodText = buildMethodSourceMethod(testMethod.getName());
+            var methodSourceMethod = factory.createMethodFromText(methodSourceMethodText, testClass);
+            testClass.add(methodSourceMethod);
+        }
+
         testClass.add(testMethod);
         addMissingImports(testClass, factory);
 
         editor.openFile(testClass.getContainingFile().getVirtualFile(), true);
 
         return new GenerationInfo[0];
+    }
+
+    private boolean hasOnlySimpleTypes(PsiMethod method) {
+        return stream(method.getParameterList().getParameters())
+                .allMatch(param -> SIMPLE_TYPES.contains(param.getType().getPresentableText()));
     }
 
     private PsiDirectory findOrCreateTestDirectory(Project project, PsiClass containingClass) {
@@ -150,9 +174,10 @@ public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBas
         importList.add(importStatement);
     }
 
-    private String buildTestMethodText(PsiMethod originalMethod) {
+    private String buildTestMethodText(PsiMethod originalMethod, boolean useMethodSource) {
         var originalClassName = originalMethod.getContainingClass().getName();
         var originalMethodName = originalMethod.getName();
+        var testMethodName = "test" + toUpperCase(originalMethodName.charAt(0)) + originalMethodName.substring(1);
 
         var testMethodParams = stream(originalMethod.getParameterList().getParameters())
                 .map(PsiElement::getText)
@@ -163,10 +188,17 @@ public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBas
                 .map(PsiParameter::getName)
                 .collect(joining(","));
 
+        var testDataSource = useMethodSource
+                ? "@MethodSource"
+                : """
+                    @CsvSource(delimiter = '|', textBlock = ""\"
+                            ""\")
+                """;
+
         return """
                 @ParameterizedTest
-                @MethodSource
-                void test_%s(%s) {
+                %s
+                void %s(%s) {
                     // Given
                     var instance = new %s();
                 
@@ -177,7 +209,8 @@ public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBas
                     assertThat(result).isEqualTo(expected);
                 }
                 """.formatted(
-                originalMethodName,
+                testDataSource,
+                testMethodName,
                 testMethodParams,
                 originalClassName,
                 originalMethodName,

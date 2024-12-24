@@ -62,6 +62,8 @@ public class Calculator {
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class CalculatorTest {
 
     @ParameterizedTest
@@ -70,7 +72,7 @@ public class CalculatorTest {
         5  | 5  | 10
         10 | -5 | 5
     """)
-    void testAddParameterized(int a, int b, int expected) {
+    void testAdd(int a, int b, int expected) {
         // Given
         var instance = new Calculator();
         
