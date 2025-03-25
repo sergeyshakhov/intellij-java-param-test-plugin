@@ -5,4 +5,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = "intellij-java-testgen-plugin"
+rootProject.name = "intellij-java-param-test-plugin"

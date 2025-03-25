@@ -18,7 +18,7 @@ The **Parameterized Test Generator** plugin for IntelliJ IDEA simplifies the pro
 ### Building the Plugin
 Build the plugin using Gradle:
 ```bash
-./gradlew buildPlugin
+./gradlew build
 ```
 
 ### Running the Plugin Locally
