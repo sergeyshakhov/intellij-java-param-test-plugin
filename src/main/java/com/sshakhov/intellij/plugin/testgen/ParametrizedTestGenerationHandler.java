@@ -7,31 +7,42 @@ import com.intellij.codeInsight.generation.PsiMethodMember;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectRootManager;
-import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.JavaCodeStyleManager;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 
+import static com.intellij.openapi.vfs.VfsUtil.createDirectoryIfMissing;
+import static com.intellij.openapi.vfs.VfsUtil.findFileByIoFile;
 import static java.lang.Character.toUpperCase;
 import static java.util.Arrays.stream;
 import static java.util.stream.Collectors.joining;
 
 public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBase {
 
-    private static final List<String> SIMPLE_TYPES = List.of(new String[]{
-            "boolean",
-            "byte",
-            "char",
-            "double",
-            "float",
-            "int",
-            "long",
-            "short",
-            "String"
-    });
+    private static final String TEST_METHOD_TEMPLATE = """
+            @ParameterizedTest
+            @MethodSource
+            void %s(%s) {
+                // given
+                var instance = new %s();
+            
+                // when
+                var result = instance.%s(%s);
+            
+                // then
+                assertThat(result).isEqualTo(expected);
+            }
+            """;
+
+    private static final String METHOD_SOURCE_PARAMS_TEMPLATE = """
+            public static Stream<Arguments> %s() {
+                return Stream.of(
+                        arguments()
+                );
+            }
+            """;
 
     public ParametrizedTestGenerationHandler(String title) {
         super(title);
@@ -60,15 +71,12 @@ public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBas
         var directory = findOrCreateTestDirectory(project, psiClass);
         var testClass = findOrCreateTestClass(directory, testClassName);
 
-        var hasOnlySimpleTypes = hasOnlySimpleTypes(originalMethod);
-        var testMethodText = buildTestMethodText(originalMethod, !hasOnlySimpleTypes);
+        var testMethodText = buildTestMethodText(originalMethod);
         var testMethod = factory.createMethodFromText(testMethodText, testClass);
 
-        if (!hasOnlySimpleTypes) {
-            var methodSourceMethodText = buildMethodSourceMethod(testMethod.getName());
-            var methodSourceMethod = factory.createMethodFromText(methodSourceMethodText, testClass);
-            testClass.add(methodSourceMethod);
-        }
+        var methodSourceMethodText = buildMethodSourceMethod(testMethod.getName());
+        var methodSourceMethod = factory.createMethodFromText(methodSourceMethodText, testClass);
+        testClass.add(methodSourceMethod);
 
         testClass.add(testMethod);
         addMissingImports(testClass, factory);
@@ -78,11 +86,6 @@ public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBas
         return new GenerationInfo[0];
     }
 
-    private boolean hasOnlySimpleTypes(PsiMethod method) {
-        return stream(method.getParameterList().getParameters())
-                .allMatch(param -> SIMPLE_TYPES.contains(param.getType().getPresentableText()));
-    }
-
     private PsiDirectory findOrCreateTestDirectory(Project project, PsiClass containingClass) {
         var containingFile = containingClass.getContainingFile();
         var sourceFile = containingFile.getVirtualFile();
@@ -90,11 +93,11 @@ public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBas
         var sourceRoot = ProjectRootManager.getInstance(project).getFileIndex().getSourceRootForFile(sourceFile);
 
         var testPath = sourceRoot.getPath().replace("/main/", "/test/");
-        var testRoot = VfsUtil.findFileByIoFile(new File(testPath), true);
+        var testRoot = findFileByIoFile(new File(testPath), true);
 
         if (testRoot == null) {
             try {
-                testRoot = VfsUtil.createDirectoryIfMissing(testPath);
+                testRoot = createDirectoryIfMissing(testPath);
             } catch (IOException ex) {
                 ex.printStackTrace();
                 return null;
@@ -147,6 +150,7 @@ public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBas
         addImportIfMissing(factory, importList, "org.junit.jupiter.params.provider");
         addImportIfMissing(factory, importList, "java.util.stream");
         addStaticImportIfMissing(factory, importList, "org.assertj.core.api.Assertions", "assertThat");
+        addStaticImportIfMissing(factory, importList, "org.junit.jupiter.params.provider.Arguments", "arguments");
 
         JavaCodeStyleManager.getInstance(psiClass.getProject()).optimizeImports(javaFile);
     }
@@ -175,7 +179,7 @@ public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBas
         importList.add(importStatement);
     }
 
-    private String buildTestMethodText(PsiMethod originalMethod, boolean useMethodSource) {
+    private String buildTestMethodText(PsiMethod originalMethod) {
         var originalClassName = originalMethod.getContainingClass().getName();
         var originalMethodName = originalMethod.getName();
         var testMethodName = "test" + toUpperCase(originalMethodName.charAt(0)) + originalMethodName.substring(1);
@@ -183,34 +187,14 @@ public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBas
         var testMethodParams = stream(originalMethod.getParameterList().getParameters())
                 .map(PsiElement::getText)
                 .collect(joining(","));
-        testMethodParams += "," + originalMethod.getReturnType().getPresentableText() + " expected";
+        var originalReturnType = originalMethod.getReturnType().getPresentableText();
+        testMethodParams += "," + originalReturnType + " expected";
 
         var instanceCallParams = stream(originalMethod.getParameterList().getParameters())
                 .map(PsiParameter::getName)
                 .collect(joining(","));
 
-        var testDataSource = useMethodSource
-                ? "@MethodSource"
-                : """
-                    @CsvSource(delimiter = '|', textBlock = ""\"
-                            ""\")
-                """;
-
-        return """
-                @ParameterizedTest
-                %s
-                void %s(%s) {
-                    // Given
-                    var instance = new %s();
-                
-                    // When
-                    var result = instance.%s(%s);
-                
-                    // Then
-                    assertThat(result).isEqualTo(expected);
-                }
-                """.formatted(
-                testDataSource,
+        return TEST_METHOD_TEMPLATE.formatted(
                 testMethodName,
                 testMethodParams,
                 originalClassName,
@@ -220,14 +204,6 @@ public class ParametrizedTestGenerationHandler extends GenerateMembersHandlerBas
     }
 
     private String buildMethodSourceMethod(String testMethodName) {
-        return """
-                public static Stream<Arguments> %s() {
-                    return Stream.of(
-                            Arguments.of()
-                    );
-                }
-                """.formatted(
-                testMethodName
-        );
+        return METHOD_SOURCE_PARAMS_TEMPLATE.formatted(testMethodName);
     }
 }
