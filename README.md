@@ -14,6 +14,7 @@ The **Parameterized Test Generator** plugin for IntelliJ IDEA simplifies the pro
 ### Prerequisites
 - **JDK**: Version 17 or higher
 - **Gradle**: Ensure Gradle is installed or use the Gradle Wrapper included in the project
+- **IntelliJ IDEA**: Version 2024.1 or higher
 
 ### Building the Plugin
 Build the plugin using Gradle:
@@ -45,6 +46,15 @@ To test the plugin in a sandbox environment:
     - Add a parameterized test methods for the selected methods
     - Add and optimize necessary imports
     - Open the test class in a new editor tab
+5. Generated parameterized test methods requires following dependencies to be added to your project:
+```kotlin
+dependencies {
+    testImplementation(platform("org.junit:junit-bom:5.10.0"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("org.junit.jupiter:junit-jupiter-params")
+    testImplementation("org.assertj:assertj-core:3.27.3")
+}
+```
 
 ## Example
 
@@ -60,17 +70,17 @@ public class Calculator {
 ### Generated Test Class
 ```java
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 public class CalculatorTest {
 
    public static Stream<Arguments> testAdd() {
       return Stream.of(
-              arguments(1, 2, 3),
-              arguments(5, 5, 10),
-              arguments(10, -5, 5)
+              arguments(/* add parameters */)
       );
    }
 
