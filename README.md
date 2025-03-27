@@ -3,13 +3,6 @@
 ## Overview
 The **Parameterized Test Generator** plugin for IntelliJ IDEA simplifies the process of creating parameterized tests for your Java methods. With a single action, you can generate a test class with a properly annotated parameterized test method, ensuring all necessary imports are added and optimized.
 
-## Features
-- Automatically generates parameterized test method for the selected Java method
-- Adds the test method to an existing test class or creates a new one if it doesn't exist
-- Ensures required imports are added to the test class
-- Optimizes imports to remove unused or redundant entries
-- Opens the updated test class in a new editor tab for immediate use
-
 ## Development
 ### Prerequisites
 - **JDK**: Version 17 or higher

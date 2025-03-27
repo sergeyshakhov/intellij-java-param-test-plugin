@@ -13,7 +13,16 @@
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]> tag.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
-    <description></description>
+    <description>
+        <![CDATA[
+            <p>
+            <b>Java Parameterized Test Generator</b> plugin simplifies the process of creating parameterized
+            tests for your Java methods.
+            With a single action, you can generate a test class with a properly annotated parameterized test method, ensuring
+            all necessary imports are added and optimized.
+            </p>
+        ]]>
+    </description>
 
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
